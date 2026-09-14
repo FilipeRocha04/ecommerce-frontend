@@ -14,6 +14,8 @@ export interface Vehicle {
   year: number;
   engine: string;
   primary?: boolean;
+  /** id da variante de veículo no backend (usado para compatibilidade real) */
+  varianteId?: string;
 }
 
 export interface Review {

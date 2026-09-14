@@ -3,9 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { SiteLayout } from "@/components/SiteLayout";
 import { ProductCard } from "@/components/ProductCard";
-import { BRANDS, CATEGORIES, PRODUCTS, categoryName } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
 import { cn } from "@/lib/utils";
-import type { CategorySlug } from "@/types";
 
 const searchSchema = z.object({
   q: z.string().optional(),
@@ -23,10 +22,11 @@ function normalize(s: string) {
 
 function ProductsPage() {
   const { q, categoria } = Route.useSearch();
+  const { products, categories, brands, categoryName } = useCatalog();
   const [brand, setBrand] = useState<string | null>(null);
 
   const results = useMemo(() => {
-    let list = PRODUCTS;
+    let list = products;
     if (categoria) list = list.filter((p) => p.category === categoria);
     if (brand) list = list.filter((p) => p.brand === brand);
     if (q && q.trim()) {
@@ -34,10 +34,10 @@ function ProductsPage() {
       list = list.filter((p) => normalize(p.name).includes(t) || normalize(p.brand).includes(t));
     }
     return list;
-  }, [q, categoria, brand]);
+  }, [products, q, categoria, brand]);
 
   const title = categoria
-    ? categoryName(categoria as CategorySlug)
+    ? categoryName(categoria)
     : q
       ? `Resultados para "${q}"`
       : "Todas as peças";
@@ -59,7 +59,7 @@ function ProductsPage() {
           >
             Todas as marcas
           </button>
-          {BRANDS.map((b) => (
+          {brands.map((b) => (
             <button
               key={b}
               type="button"
@@ -76,7 +76,7 @@ function ProductsPage() {
 
         {!categoria && (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <a
                 key={c.slug}
                 href={`/produtos?categoria=${c.slug}`}

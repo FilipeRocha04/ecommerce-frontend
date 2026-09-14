@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { StoreProvider } from "../hooks/useStore";
+import { CatalogProvider } from "../hooks/useCatalog";
 import { ThemeProvider } from "../hooks/useTheme";
 import { Toaster } from "../components/ui/sonner";
 
@@ -133,11 +134,13 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <StoreProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-          <Toaster />
-        </StoreProvider>
+        <CatalogProvider>
+          <StoreProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+            <Toaster />
+          </StoreProvider>
+        </CatalogProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

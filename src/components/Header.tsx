@@ -4,10 +4,11 @@ import { SearchBar } from "@/components/SearchBar";
 import { VehicleSelector } from "@/components/VehicleSelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useStore } from "@/hooks/useStore";
-import { CATEGORIES } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
 
 export function Header() {
   const { cartCount } = useStore();
+  const { categories } = useCatalog();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
@@ -71,7 +72,7 @@ export function Header() {
               Todas as peças
             </Link>
           </li>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <li key={c.slug}>
               <Link
                 to="/produtos"

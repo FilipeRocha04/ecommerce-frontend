@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageSquareText, Search } from "lucide-react";
-import { PRODUCTS } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
 import { track } from "@/services/tracking";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ function normalize(s: string) {
 }
 
 export function SearchBar({ className }: { className?: string }) {
+  const { products } = useCatalog();
   const [q, setQ] = useState("");
   const [focused, setFocused] = useState(false);
   const navigate = useNavigate();
@@ -20,10 +21,10 @@ export function SearchBar({ className }: { className?: string }) {
   const suggestions = useMemo(() => {
     if (q.trim().length < 2) return [];
     const t = normalize(q);
-    return PRODUCTS.filter(
-      (p) => normalize(p.name).includes(t) || normalize(p.brand).includes(t),
-    ).slice(0, 6);
-  }, [q]);
+    return products
+      .filter((p) => normalize(p.name).includes(t) || normalize(p.brand).includes(t))
+      .slice(0, 6);
+  }, [q, products]);
 
   const isQuestion = q.trim().split(/\s+/).length >= 4 || /\?/.test(q);
 

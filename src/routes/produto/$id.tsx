@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { SiteLayout } from "@/components/SiteLayout";
@@ -9,34 +10,72 @@ import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { brl } from "@/lib/format";
 import { useStore } from "@/hooks/useStore";
-import { getProduct, PRODUCTS } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
+import { backend, ApiError } from "@/services/backend/client";
+import { toProduct } from "@/services/backend/adapters";
 import { track } from "@/services/tracking";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/produto/$id")({
   component: ProductPage,
-  loader: ({ params }) => {
-    const product = getProduct(params.id);
-    if (!product) throw notFound();
-    return { product };
-  },
 });
 
 function ProductPage() {
-  const { product } = Route.useLoaderData();
+  const { id } = Route.useParams();
+  const { products, categoriasPorId } = useCatalog();
   const { addToCart, isCompatible, toggleFavorite, isFavorite } = useStore();
-  const compatible = isCompatible(product);
-  const fav = isFavorite(product.id);
-  const complements = (product.complements ?? [])
-    .map((id) => getProduct(id))
-    .filter((p): p is NonNullable<typeof p> => Boolean(p));
-  const related = PRODUCTS.filter(
-    (p) => p.category === product.category && p.id !== product.id,
-  ).slice(0, 4);
+
+  const produtoQuery = useQuery({
+    queryKey: ["produto", id],
+    queryFn: () => backend.produtos.obter(id),
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status === 404 ? false : failureCount < 2,
+  });
+
+  const estoqueQuery = useQuery({
+    queryKey: ["estoque", id],
+    queryFn: () => backend.produtos.estoque(id),
+    enabled: produtoQuery.isSuccess,
+  });
 
   useEffect(() => {
-    track("product_viewed", { productId: product.id });
-  }, [product.id]);
+    if (produtoQuery.isSuccess) track("product_viewed", { productId: id });
+  }, [produtoQuery.isSuccess, id]);
+
+  if (produtoQuery.isLoading) {
+    return (
+      <SiteLayout>
+        <div className="mx-auto max-w-7xl px-4 py-16 text-center text-sm text-muted-foreground">
+          Carregando produto...
+        </div>
+      </SiteLayout>
+    );
+  }
+
+  if (produtoQuery.isError || !produtoQuery.data) {
+    return (
+      <SiteLayout>
+        <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+          <h1 className="text-xl font-bold">Produto não encontrado</h1>
+          <Link
+            to="/produtos"
+            className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
+          >
+            ← Voltar para todas as peças
+          </Link>
+        </div>
+      </SiteLayout>
+    );
+  }
+
+  const product = toProduct(produtoQuery.data, categoriasPorId);
+  const stock = estoqueQuery.data?.quantidade_disponivel ?? product.stock;
+
+  const compatible = isCompatible(product);
+  const fav = isFavorite(product.id);
+  const related = products
+    .filter((p) => p.category === product.category && p.id !== product.id)
+    .slice(0, 4);
 
   return (
     <SiteLayout>
@@ -69,14 +108,14 @@ function ProductPage() {
                 {product.installments}x de {brl(product.price / product.installments)} sem juros
               </span>
               <p className="mt-2 text-xs text-muted-foreground">
-                {product.stock > 0 ? `${product.stock} em estoque` : "Sem estoque"} · Garantia:{" "}
-                {product.warranty} · Código: {product.partCode}
+                {stock > 0 ? `${stock} em estoque` : "Sem estoque"} · Garantia: {product.warranty} ·
+                Código: {product.partCode}
               </p>
 
               <div className="mt-4 flex gap-2">
                 <Button
                   className="flex-1 bg-brand text-brand-foreground hover:bg-brand/90"
-                  disabled={product.stock === 0}
+                  disabled={stock === 0}
                   onClick={() => {
                     addToCart(product.id);
                     toast.success("Adicionado ao carrinho", { description: product.name });
@@ -113,17 +152,6 @@ function ProductPage() {
             </div>
           </div>
         </div>
-
-        {complements.length > 0 && (
-          <section className="mt-10">
-            <h2 className="text-lg font-bold">Combina com</h2>
-            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {complements.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          </section>
-        )}
 
         {related.length > 0 && (
           <section className="mt-10">

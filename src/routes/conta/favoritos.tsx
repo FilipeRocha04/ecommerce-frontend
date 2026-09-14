@@ -4,7 +4,7 @@ import { SiteLayout } from "@/components/SiteLayout";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/hooks/useStore";
-import { getProduct } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
 
 export const Route = createFileRoute("/conta/favoritos")({
   component: FavoritesPage,
@@ -12,6 +12,7 @@ export const Route = createFileRoute("/conta/favoritos")({
 
 function FavoritesPage() {
   const { favorites } = useStore();
+  const { getProduct } = useCatalog();
   const products = favorites
     .map((id) => getProduct(id))
     .filter((p): p is NonNullable<typeof p> => Boolean(p));

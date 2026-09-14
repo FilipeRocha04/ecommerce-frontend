@@ -7,9 +7,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { CartItem, Product, Vehicle } from "@/types";
-import { PRODUCTS, getProduct } from "@/mocks/products";
-import { MY_VEHICLES, fitmentKey } from "@/mocks/vehicles";
+import { useCatalog } from "@/hooks/useCatalog";
+import { backend } from "@/services/backend/client";
 import { track } from "@/services/tracking";
 import type { Channel } from "@/types";
 
@@ -47,14 +48,15 @@ interface StoreValue extends PersistedState {
 const initial: PersistedState = {
   cart: [],
   vehicle: null,
-  vehicles: MY_VEHICLES,
-  favorites: ["pastilha-bosch-diant", "oleo-mobil-5w30"],
+  vehicles: [],
+  favorites: [],
   coupon: null,
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { getProduct } = useCatalog();
   const [state, setState] = useState<PersistedState>(initial);
   const [hydrated, setHydrated] = useState(false);
 
@@ -148,6 +150,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const varianteId = state.vehicle?.varianteId;
+  const compatibilidadeQuery = useQuery({
+    queryKey: ["produtos-compativeis", varianteId],
+    queryFn: () => backend.produtos.listar({ veiculo: varianteId as string, tamanho_pagina: 100 }),
+    enabled: Boolean(varianteId),
+    staleTime: 60 * 1000,
+  });
+  const produtosCompativeisIds = useMemo(
+    () => new Set((compatibilidadeQuery.data?.itens ?? []).map((p) => p.id)),
+    [compatibilidadeQuery.data],
+  );
+
   const value = useMemo<StoreValue>(() => {
     const cartProducts = state.cart
       .map((i) => ({ product: getProduct(i.productId), quantity: i.quantity }))
@@ -176,12 +190,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleFavorite,
       isFavorite: (id: string) => state.favorites.includes(id),
       isCompatible: (product: Product) => {
-        if (!state.vehicle) return null;
-        return product.fitment.includes(fitmentKey(state.vehicle));
+        if (!state.vehicle?.varianteId) return null;
+        return produtosCompativeisIds.has(product.id);
       },
     };
   }, [
     state,
+    produtosCompativeisIds,
+    getProduct,
     addToCart,
     removeFromCart,
     setQuantity,
@@ -202,5 +218,3 @@ export function useStore() {
   if (!ctx) throw new Error("useStore precisa estar dentro de StoreProvider");
   return ctx;
 }
-
-export const ALL_PRODUCTS = PRODUCTS;

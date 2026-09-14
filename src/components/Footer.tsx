@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { CreditCard, Truck, ShieldCheck } from "lucide-react";
-import { CATEGORIES } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
 
 export function Footer() {
+  const { categories } = useCatalog();
   return (
     <footer className="mt-16 border-t border-border bg-primary text-primary-foreground">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
@@ -18,7 +19,7 @@ export function Footer() {
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide">Categorias</h3>
           <ul className="mt-3 space-y-2 text-sm text-primary-foreground/70">
-            {CATEGORIES.slice(0, 5).map((c) => (
+            {categories.slice(0, 5).map((c) => (
               <li key={c.slug}>
                 <Link
                   to="/produtos"

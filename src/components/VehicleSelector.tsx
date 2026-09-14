@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { VEHICLE_BRANDS, getModelInfo, getModels, vehicleLabel } from "@/mocks/vehicles";
+import { vehicleLabel } from "@/mocks/vehicles";
 import { useStore } from "@/hooks/useStore";
+import { useCatalog } from "@/hooks/useCatalog";
 import { cn } from "@/lib/utils";
 
 export function VehicleSelector({
@@ -28,20 +29,38 @@ export function VehicleSelector({
   variant?: "default" | "block";
 }) {
   const { vehicle, setVehicle, addVehicle, vehicles } = useStore();
+  const { vehicleTree, vehicleBrands } = useCatalog();
   const [open, setOpen] = useState(false);
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
   const [engine, setEngine] = useState("");
 
-  const models = brand ? Object.keys(getModels(brand)) : [];
-  const info = brand && model ? getModelInfo(brand, model) : null;
-  const complete = Boolean(brand && model && year && engine);
+  const modelos = brand ? Object.keys(vehicleTree[brand]?.modelos ?? {}).sort() : [];
+  const variantesDoModelo = brand && model ? (vehicleTree[brand]?.modelos[model] ?? []) : [];
+
+  const anos = Array.from(
+    new Set(
+      variantesDoModelo.flatMap((v) =>
+        Array.from({ length: v.ano_fim - v.ano_inicio + 1 }, (_, i) => v.ano_inicio + i),
+      ),
+    ),
+  ).sort((a, b) => a - b);
+
+  const anoNum = year ? Number(year) : null;
+  const variantesDoAno = anoNum
+    ? variantesDoModelo.filter((v) => v.ano_inicio <= anoNum && v.ano_fim >= anoNum)
+    : [];
+  const motores = Array.from(new Set(variantesDoAno.map((v) => v.motor)));
+
+  const varianteEscolhida = variantesDoAno.find((v) => v.motor === engine);
+  const complete = Boolean(brand && model && year && engine && varianteEscolhida);
 
   function confirm() {
-    if (!complete) return;
+    if (!complete || !varianteEscolhida) return;
     addVehicle({
-      id: `${brand}-${model}-${year}-${engine}`,
+      id: varianteEscolhida.id,
+      varianteId: varianteEscolhida.id,
       brand,
       model,
       year: Number(year),
@@ -125,7 +144,7 @@ export function VehicleSelector({
               <SelectValue placeholder="Marca" />
             </SelectTrigger>
             <SelectContent>
-              {VEHICLE_BRANDS.map((b) => (
+              {vehicleBrands.map((b) => (
                 <SelectItem key={b} value={b}>
                   {b}
                 </SelectItem>
@@ -146,7 +165,7 @@ export function VehicleSelector({
               <SelectValue placeholder="Modelo" />
             </SelectTrigger>
             <SelectContent>
-              {models.map((m) => (
+              {modelos.map((m) => (
                 <SelectItem key={m} value={m}>
                   {m}
                 </SelectItem>
@@ -154,12 +173,19 @@ export function VehicleSelector({
             </SelectContent>
           </Select>
 
-          <Select value={year} onValueChange={setYear} disabled={!info}>
+          <Select
+            value={year}
+            onValueChange={(v) => {
+              setYear(v);
+              setEngine("");
+            }}
+            disabled={!model}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Ano" />
             </SelectTrigger>
             <SelectContent>
-              {info?.years.map((y) => (
+              {anos.map((y) => (
                 <SelectItem key={y} value={String(y)}>
                   {y}
                 </SelectItem>
@@ -167,14 +193,14 @@ export function VehicleSelector({
             </SelectContent>
           </Select>
 
-          <Select value={engine} onValueChange={setEngine} disabled={!info}>
+          <Select value={engine} onValueChange={setEngine} disabled={!year}>
             <SelectTrigger>
               <SelectValue placeholder="Motor" />
             </SelectTrigger>
             <SelectContent>
-              {info?.engines.map((e) => (
-                <SelectItem key={e} value={e}>
-                  {e}
+              {motores.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
                 </SelectItem>
               ))}
             </SelectContent>

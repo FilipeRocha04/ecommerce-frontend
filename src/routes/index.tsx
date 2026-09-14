@@ -3,14 +3,15 @@ import { MessageSquareText } from "lucide-react";
 import { SiteLayout } from "@/components/SiteLayout";
 import { VehicleSelector } from "@/components/VehicleSelector";
 import { ProductCard } from "@/components/ProductCard";
-import { CATEGORIES, PRODUCTS } from "@/mocks/products";
+import { useCatalog } from "@/hooks/useCatalog";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
 function Index() {
-  const featured = PRODUCTS.slice(0, 8);
+  const { categories, products } = useCatalog();
+  const featured = products.slice(0, 8);
 
   return (
     <SiteLayout>
@@ -43,7 +44,7 @@ function Index() {
       <section className="mx-auto max-w-7xl px-4 py-8">
         <h2 className="text-lg font-bold">Categorias</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <Link
               key={c.slug}
               to="/produtos"
