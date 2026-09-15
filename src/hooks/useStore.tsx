@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { CartItem, Product, Vehicle } from "@/types";
 import { useCatalog } from "@/hooks/useCatalog";
 import { backend } from "@/services/backend/client";
+import type { CarrinhoResposta } from "@/services/backend/types";
 import { track } from "@/services/tracking";
 import type { Channel } from "@/types";
 
@@ -18,6 +19,7 @@ const KEY = "autoparts:state:v1";
 
 interface PersistedState {
   cart: CartItem[];
+  carrinhoId: string | null;
   vehicle: Vehicle | null;
   vehicles: Vehicle[];
   favorites: string[];
@@ -43,10 +45,12 @@ interface StoreValue extends PersistedState {
   toggleFavorite: (productId: string) => void;
   isFavorite: (productId: string) => boolean;
   isCompatible: (product: Product) => boolean | null;
+  sincronizarCarrinho: (carrinho: CarrinhoResposta) => void;
 }
 
 const initial: PersistedState = {
   cart: [],
+  carrinhoId: null,
   vehicle: null,
   vehicles: [],
   favorites: [],
@@ -141,6 +145,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const sincronizarCarrinho = useCallback((carrinho: CarrinhoResposta) => {
+    setState((s) => ({
+      ...s,
+      carrinhoId: carrinho.id,
+      cart: carrinho.itens.map((item) => ({
+        productId: item.produto_id,
+        quantity: item.quantidade,
+      })),
+    }));
+  }, []);
+
   const toggleFavorite = useCallback((productId: string) => {
     setState((s) => ({
       ...s,
@@ -193,6 +208,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!state.vehicle?.varianteId) return null;
         return produtosCompativeisIds.has(product.id);
       },
+      sincronizarCarrinho,
     };
   }, [
     state,
@@ -208,6 +224,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     removeVehicle,
     makePrimary,
     toggleFavorite,
+    sincronizarCarrinho,
   ]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

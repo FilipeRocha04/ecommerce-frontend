@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Send, MessageSquareText } from "lucide-react";
-import { toast } from "sonner";
 import { SiteLayout } from "@/components/SiteLayout";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useStore } from "@/hooks/useStore";
-import { greeting, respond } from "@/services/assistant";
+import { useCatalog } from "@/hooks/useCatalog";
+import { backend, ApiError } from "@/services/backend/client";
+import { toProduct } from "@/services/backend/adapters";
 import { track } from "@/services/tracking";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
@@ -21,8 +22,14 @@ interface Message {
   role: "assistant" | "user";
   text: string;
   products?: Product[] | undefined;
-  suggestions?: string[] | undefined;
 }
+
+const SUGESTOES_INICIAIS = [
+  "Preciso de pastilhas de freio para um Gol 1.6 2020",
+  "Óleo para Civic 2018",
+  "Preciso trocar os filtros do meu carro",
+  "Meu carro faz barulho quando freio",
+];
 
 let seq = 0;
 function nextId() {
@@ -31,13 +38,17 @@ function nextId() {
 }
 
 function AssistantPage() {
-  const { setVehicle, addToCart } = useStore();
-  const [messages, setMessages] = useState<Message[]>(() => {
-    const g = greeting();
-    return [{ id: nextId(), role: "assistant", text: g.text, suggestions: g.suggestions }];
-  });
-  const [lastProducts, setLastProducts] = useState<Product[]>([]);
+  const { vehicle, carrinhoId, sincronizarCarrinho } = useStore();
+  const { categoriasPorId } = useCatalog();
+  const [messages, setMessages] = useState<Message[]>(() => [
+    {
+      id: nextId(),
+      role: "assistant",
+      text: "Olá! 👋 Sou seu assistente de compras da AutoParts.\n\nPosso te ajudar a encontrar a peça certa para o seu carro. O que você está procurando?",
+    },
+  ]);
   const [input, setInput] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,36 +57,54 @@ function AssistantPage() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, enviando]);
 
-  function send(text: string) {
-    if (!text.trim()) return;
+  async function send(text: string) {
+    if (!text.trim() || enviando) return;
     track("assistant_message_sent", { text });
+
+    const historico = messages.map((m) => ({
+      role: m.role,
+      content: m.text,
+    }));
+
     setMessages((m) => [...m, { id: nextId(), role: "user", text }]);
     setInput("");
+    setEnviando(true);
 
-    const reply = respond(text, null, lastProducts);
-    if (reply.detectedVehicle) setVehicle(reply.detectedVehicle);
-    if (reply.products?.length) {
-      setLastProducts(reply.products);
-      track("assistant_product_recommended", { productIds: reply.products.map((p) => p.id) });
-    }
-    if (reply.addToCart) {
-      addToCart(reply.addToCart, 1, "assistant");
-      toast.success("Adicionado ao carrinho");
-    }
+    try {
+      const resposta = await backend.assistente.conversar({
+        mensagem: text,
+        historico,
+        ...(carrinhoId ? { carrinho_id: carrinhoId } : {}),
+        ...(vehicle?.varianteId ? { variante_veiculo_id: vehicle.varianteId } : {}),
+      });
 
-    setMessages((m) => [
-      ...m,
-      {
-        id: nextId(),
-        role: "assistant",
-        text: reply.text,
-        products: reply.products,
-        suggestions: reply.suggestions,
-      },
-    ]);
+      if (resposta.carrinho) sincronizarCarrinho(resposta.carrinho);
+
+      const produtos = resposta.produtos.map((p) => toProduct(p, categoriasPorId));
+      if (produtos.length) {
+        track("assistant_product_recommended", { productIds: produtos.map((p) => p.id) });
+      }
+
+      setMessages((m) => [
+        ...m,
+        { id: nextId(), role: "assistant", text: resposta.resposta, products: produtos },
+      ]);
+    } catch (error) {
+      const mensagemErro =
+        error instanceof ApiError
+          ? error.codigo === "assistente_nao_configurado"
+            ? "O assistente de IA ainda não foi configurado no backend (falta a chave da OpenAI)."
+            : error.message
+          : "Não consegui falar com o assistente agora. Tente de novo em instantes.";
+      setMessages((m) => [...m, { id: nextId(), role: "assistant", text: mensagemErro }]);
+    } finally {
+      setEnviando(false);
+    }
   }
+
+  const mostrarSugestoesIniciais = messages.length === 1;
 
   return (
     <SiteLayout hideFooter>
@@ -106,23 +135,29 @@ function AssistantPage() {
                   ))}
                 </div>
               )}
-
-              {m.suggestions && m.suggestions.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {m.suggestions.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => send(s)}
-                      className="rounded-full border border-brand/40 px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           ))}
+
+          {mostrarSugestoesIniciais && (
+            <div className="flex flex-wrap gap-2">
+              {SUGESTOES_INICIAIS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => send(s)}
+                  className="rounded-full border border-brand/40 px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:bg-brand/10"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {enviando && (
+            <div className="max-w-[85%] rounded-lg bg-secondary px-3 py-2 text-sm text-secondary-foreground">
+              Digitando...
+            </div>
+          )}
           <div ref={endRef} />
         </div>
 
@@ -130,7 +165,7 @@ function AssistantPage() {
           className="flex gap-2 border-t border-border pt-3"
           onSubmit={(e) => {
             e.preventDefault();
-            send(input);
+            void send(input);
           }}
         >
           <Input
@@ -138,8 +173,13 @@ function AssistantPage() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ex: pastilhas de freio para um Gol 1.6 2020"
             aria-label="Mensagem para o assistente"
+            disabled={enviando}
           />
-          <Button type="submit" className="bg-brand text-brand-foreground hover:bg-brand/90">
+          <Button
+            type="submit"
+            className="bg-brand text-brand-foreground hover:bg-brand/90"
+            disabled={enviando}
+          >
             <Send className="size-4" />
           </Button>
         </form>

@@ -121,3 +121,21 @@ export interface ErroResposta {
   erro: string;
   mensagem: string;
 }
+
+export interface MensagemChat {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistenteConversarRequest {
+  mensagem: string;
+  historico?: MensagemChat[];
+  carrinho_id?: string;
+  variante_veiculo_id?: string;
+}
+
+export interface AssistenteConversarResposta {
+  resposta: string;
+  produtos: ProdutoResposta[];
+  carrinho: CarrinhoResposta | null;
+}

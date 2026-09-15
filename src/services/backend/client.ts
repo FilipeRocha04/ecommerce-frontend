@@ -1,4 +1,6 @@
 import type {
+  AssistenteConversarRequest,
+  AssistenteConversarResposta,
   CarrinhoResposta,
   CategoriaResposta,
   CompatibilidadeResposta,
@@ -112,6 +114,13 @@ export const backend = {
     removerItem: (carrinhoId: string, itemId: string) =>
       apiFetch<CarrinhoResposta>(`/api/v1/carrinhos/${carrinhoId}/itens/${itemId}`, {
         method: "DELETE",
+      }),
+  },
+  assistente: {
+    conversar: (dados: AssistenteConversarRequest) =>
+      apiFetch<AssistenteConversarResposta>("/api/v1/assistente/conversar", {
+        method: "POST",
+        body: JSON.stringify(dados),
       }),
   },
 };
